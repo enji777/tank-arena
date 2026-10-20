@@ -61,6 +61,7 @@
     .action-pad { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; }
     .action-pad button { min-width: 62px; min-height: 54px; font-size: 12px; padding: 8px 10px; }
     .action-pad .attack { background: linear-gradient(#75413c, #482c2d); }
+    .action-pad .parry { background: linear-gradient(#3d6664, #273c40); }
     .action-pad .dodge { background: linear-gradient(#45485b, #292d3b); }
     .help-mobile { display: none; }
     @media (max-width: 700px) {
@@ -111,13 +112,14 @@
       <div class="action-pad" aria-label="Действия">
         <button class="attack" data-action="light">УДАР</button>
         <button class="attack" data-action="heavy">СИЛЬНЫЙ</button>
+        <button class="parry" data-action="parry">ПАРИРОВАТЬ</button>
         <button class="dodge" data-action="dodge">УКЛОН</button>
         <button data-action="flask">ФЛЯГА</button>
         <button data-action="interact">КОСТЁР</button>
         <button data-action="level">УЛУЧШ.</button>
       </div>
     </div>
-    <p class="control-legend help-desktop">WASD — движение · мышь — прицел · ЛКМ — удар · Shift — сильный удар · Пробел — уклонение · Q — фляга · E — костёр · R — улучшение у костра</p>
+    <p class="control-legend help-desktop">WASD — движение · мышь — прицел · ЛКМ — удар · Shift — сильный удар · F — парирование · Пробел — уклонение · Q — фляга · E — костёр · R — улучшение у костра</p>
     <p class="control-legend help-mobile">Левый блок — движение · коснись врага, чтобы прицелиться · кнопки справа — бой и действия</p>
   </main>
 
