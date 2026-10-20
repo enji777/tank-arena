@@ -90,18 +90,19 @@ const moveKeys = {
 };
 
 function queueAction(action) {
-  if (myId && ['light', 'heavy', 'dodge', 'flask', 'interact', 'level'].includes(action)) actionQueue.push(action);
+  if (myId && ['light', 'heavy', 'dodge', 'parry', 'flask', 'interact', 'level'].includes(action)) actionQueue.push(action);
 }
 
 document.addEventListener('keydown', event => {
   if (document.activeElement === roomInput) return;
-  const recognized = moveKeys[event.key] || ['Space', 'ShiftLeft', 'ShiftRight', 'KeyQ', 'KeyE', 'KeyR'].includes(event.code);
+  const recognized = moveKeys[event.key] || ['Space', 'ShiftLeft', 'ShiftRight', 'KeyF', 'KeyQ', 'KeyE', 'KeyR'].includes(event.code);
   if (!recognized) return;
   event.preventDefault();
   if (event.repeat) return;
   pressedKeys.add(event.key === ' ' ? 'Space' : event.key);
   if (event.code === 'Space') queueAction('dodge');
   if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') queueAction('heavy');
+  if (event.code === 'KeyF') queueAction('parry');
   if (event.code === 'KeyQ') queueAction('flask');
   if (event.code === 'KeyE') queueAction('interact');
   if (event.code === 'KeyR') queueAction('level');
@@ -365,12 +366,24 @@ function drawPlayer(player) {
   ctx.restore();
 
   if (player.attack) {
-    ctx.save(); ctx.strokeStyle = player.attack.type === 'heavy' ? '#f4c46d' : '#d9e0dc';
+    ctx.save(); ctx.strokeStyle = player.attack.riposte ? '#fff0a6' : player.attack.type === 'heavy' ? '#f4c46d' : '#d9e0dc';
     ctx.globalAlpha = 0.8; ctx.lineWidth = player.attack.type === 'heavy' ? 6 : 4;
     ctx.beginPath(); ctx.arc(player.x, player.y, player.attack.type === 'heavy' ? 46 : 35, player.a - 0.72, player.a + 0.72); ctx.stroke(); ctx.restore();
   }
+  if (player.parryTicks > 0 || player.parryFlash > 0) {
+    const success = player.parryFlash > 0;
+    ctx.save();
+    ctx.strokeStyle = success ? '#fff0a6' : '#93c7c4';
+    ctx.globalAlpha = success ? Math.min(1, player.parryFlash / 8) : 0.7;
+    ctx.lineWidth = success ? 4 : 2;
+    ctx.beginPath(); ctx.arc(player.x, player.y, success ? 34 : 25, player.a - 0.92, player.a + 0.92); ctx.stroke();
+    ctx.restore();
+  }
   if (player.id === myId) {
     ctx.fillStyle = '#f2deb1'; ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center'; ctx.fillText('▼', player.x, player.y - 24);
+    if (player.riposteWindow > 0) {
+      ctx.fillStyle = '#ffe39a'; ctx.font = 'bold 12px system-ui'; ctx.fillText('ОТВЕТНЫЙ УДАР', player.x, player.y - 42);
+    }
   }
 }
 
@@ -433,6 +446,11 @@ function render() {
       ctx.fillStyle = '#090a0dcc'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
       ctx.textAlign = 'center'; ctx.fillStyle = '#e5d7bd'; ctx.font = 'bold 32px Georgia, serif'; ctx.fillText('ПУТНИК ПАЛ', WIDTH / 2, HEIGHT / 2 - 14);
       ctx.font = '17px system-ui'; ctx.fillStyle = '#d4bd8d'; ctx.fillText('Души ждут там, где оборвался путь', WIDTH / 2, HEIGHT / 2 + 22);
+    }
+    if (me.parryFlash > 0) {
+      ctx.save(); ctx.textAlign = 'center'; ctx.font = 'bold 22px Georgia, serif';
+      ctx.fillStyle = '#ffe7a7'; ctx.shadowColor = '#e99c47'; ctx.shadowBlur = 16;
+      ctx.fillText('ПАРИРОВАНИЕ!', WIDTH / 2, HEIGHT / 2 + 90); ctx.restore();
     }
   }
 
