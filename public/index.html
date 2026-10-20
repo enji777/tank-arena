@@ -1,1 +1,128 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><title>Tank Arena</title><style>*{box-sizing:border-box}body{margin:0;background:#101623;color:#eef4ff;font:16px system-ui;text-align:center}header{padding:12px}h1{color:#f8ce52;margin:5px}.panel{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}button,input{border:1px solid #53627b;border-radius:9px;padding:12px;background:#27354d;color:white;font:inherit}button{touch-action:none}canvas{display:block;width:min(96vw,960px);aspect-ratio:3/2;margin:10px auto;border:3px solid #50617e;background:#1d2935;touch-action:none}#status{min-height:26px;margin:9px}#touch{display:flex;justify-content:space-between;max-width:650px;margin:8px auto;padding:0 12px}.pad{display:grid;grid-template-columns:repeat(3,52px);gap:3px}.pad button{width:52px;height:52px;padding:0}.up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}#shoot{background:#a63d39;width:90px;border-radius:50%}small{color:#aab7ca}</style></head><body><header><h1>⚔️ TANK ARENA</h1><div class="panel"><button id="solo">🤖 Против ботов</button><input id="code" placeholder="Код комнаты" maxlength="20"><button id="join">🌐 Войти / создать</button><button id="copy">🔗 Ссылка другу</button></div><div id="status">Выбери режим</div></header><canvas id="game" width="960" height="640"></canvas><div id="touch"><div class="pad"><button class="up" data-key="up">▲</button><button class="left" data-key="left">◀</button><button class="down" data-key="down">▼</button><button class="right" data-key="right">▶</button></div><button id="shoot" data-key="shoot">ОГОНЬ</button></div><small>WASD / стрелки — движение · Пробел — огонь · Поделись ссылкой с другом</small><script src="/socket.io/socket.io.js"></script><script src="/game.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#11131a">
+  <title>Пепельная арена — Soulslike</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #11131a;
+      --panel: #1c202a;
+      --panel-light: #282d39;
+      --line: #47414a;
+      --gold: #d7b878;
+      --text: #eee8db;
+      --muted: #aaa6a0;
+      --red: #b84b46;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 50% -20%, #32303a 0, var(--bg) 58%);
+      color: var(--text);
+      font: 15px/1.45 system-ui, sans-serif;
+      text-align: center;
+      padding: max(8px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom));
+    }
+    header { max-width: 1100px; margin: 0 auto 10px; }
+    h1 { margin: 6px 0 2px; color: var(--gold); font: 700 clamp(25px, 4vw, 38px)/1.1 Georgia, serif; letter-spacing: .08em; }
+    .subtitle { color: var(--muted); margin: 0 0 13px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+    .panel { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
+    button, input {
+      min-height: 44px;
+      border: 1px solid #62594b;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: linear-gradient(#302f34, #22242c);
+      color: var(--text);
+      font: inherit;
+    }
+    button { cursor: pointer; touch-action: none; transition: border-color .15s, transform .15s, background .15s; }
+    button:hover { border-color: var(--gold); background: #37333a; }
+    button:active, button.pressed { transform: translateY(1px); background: #49403a; border-color: var(--gold); }
+    input { width: 185px; background: #20232b; }
+    #status { min-height: 26px; margin: 8px 0 3px; color: #d2c4a2; }
+    #status[data-kind="error"] { color: #f08c82; }
+    #status[data-kind="success"] { color: #b9d39c; }
+    .game-shell { width: min(100%, 1100px); margin: 0 auto; }
+    .canvas-frame { position: relative; border: 2px solid #62594b; background: #151820; box-shadow: 0 14px 50px #0008; }
+    canvas { display: block; width: 100%; aspect-ratio: 3 / 2; touch-action: none; cursor: crosshair; }
+    .control-legend { color: var(--muted); font-size: 13px; margin: 9px 0 0; }
+    #touch-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; max-width: 860px; margin: 12px auto 0; }
+    .pad { display: grid; grid-template-columns: repeat(3, 54px); grid-template-rows: repeat(2, 54px); gap: 3px; }
+    .pad button { min-height: 54px; padding: 0; font-size: 20px; }
+    .pad .up { grid-column: 2; grid-row: 1; }
+    .pad .left { grid-column: 1; grid-row: 2; }
+    .pad .down { grid-column: 2; grid-row: 2; }
+    .pad .right { grid-column: 3; grid-row: 2; }
+    .action-pad { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; }
+    .action-pad button { min-width: 62px; min-height: 54px; font-size: 12px; padding: 8px 10px; }
+    .action-pad .attack { background: linear-gradient(#75413c, #482c2d); }
+    .action-pad .dodge { background: linear-gradient(#45485b, #292d3b); }
+    .help-mobile { display: none; }
+    @media (max-width: 700px) {
+      body { padding-left: 8px; padding-right: 8px; }
+      header { margin-bottom: 7px; }
+      .subtitle { margin-bottom: 9px; }
+      .panel { gap: 6px; }
+      .panel button, .panel input { min-height: 40px; padding: 8px 10px; font-size: 13px; }
+      input { width: 150px; }
+      #touch-controls { gap: 6px; margin-top: 9px; }
+      .pad { grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 48px); }
+      .pad button { min-height: 48px; }
+      .action-pad { max-width: 230px; gap: 5px; }
+      .action-pad button { min-width: 58px; min-height: 48px; padding: 6px; font-size: 11px; }
+      .help-desktop { display: none; }
+      .help-mobile { display: block; }
+      .control-legend { font-size: 12px; }
+    }
+    @media (min-width: 900px) and (hover: hover) and (pointer: fine) {
+      #touch-controls { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ПЕПЕЛЬНАЯ АРЕНА</h1>
+    <p class="subtitle">2D Soulslike · ПК и телефон · совместная игра</p>
+    <div class="panel">
+      <button id="solo">Начать странствие</button>
+      <input id="code" placeholder="Код комнаты" maxlength="20" autocomplete="off">
+      <button id="join">Войти / создать комнату</button>
+      <button id="copy">Ссылка другу</button>
+    </div>
+    <div id="status" role="status" aria-live="polite">Один путник или двое. Костёр ждёт.</div>
+  </header>
+
+  <main class="game-shell">
+    <div class="canvas-frame">
+      <canvas id="game" width="960" height="640" aria-label="Игровая арена"></canvas>
+    </div>
+    <div id="touch-controls" aria-label="Сенсорное управление">
+      <div class="pad" aria-label="Движение">
+        <button class="up" data-move="up" aria-label="Вверх">▲</button>
+        <button class="left" data-move="left" aria-label="Влево">◀</button>
+        <button class="down" data-move="down" aria-label="Вниз">▼</button>
+        <button class="right" data-move="right" aria-label="Вправо">▶</button>
+      </div>
+      <div class="action-pad" aria-label="Действия">
+        <button class="attack" data-action="light">УДАР</button>
+        <button class="attack" data-action="heavy">СИЛЬНЫЙ</button>
+        <button class="dodge" data-action="dodge">УКЛОН</button>
+        <button data-action="flask">ФЛЯГА</button>
+        <button data-action="interact">КОСТЁР</button>
+        <button data-action="level">УЛУЧШ.</button>
+      </div>
+    </div>
+    <p class="control-legend help-desktop">WASD — движение · мышь — прицел · ЛКМ — удар · Shift — сильный удар · Пробел — уклонение · Q — фляга · E — костёр · R — улучшение у костра</p>
+    <p class="control-legend help-mobile">Левый блок — движение · коснись врага, чтобы прицелиться · кнопки справа — бой и действия</p>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>
+
