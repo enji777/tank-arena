@@ -73,7 +73,8 @@ function makePlayer(id, x, y, color, spawnOffset, profile = {}) {
     stamina: maxStamina, maxStamina, souls: Math.max(0, Math.min(999999, Math.floor(Number(profile.souls) || 0))),
     level, flasks: 3, maxFlasks: 3,
     color, spawnOffset, input: {}, action: null, attack: null, attackCooldown: 0,
-    dodge: null, invulnerable: 0, hurtTicks: 0, deadTicks: 0, alive: true
+    dodge: null, parryTicks: 0, riposteWindow: 0, parryFlash: 0,
+    invulnerable: 0, hurtTicks: 0, deadTicks: 0, alive: true
   };
 }
 
@@ -157,8 +158,21 @@ function angleDifference(a, b) {
   return Math.atan2(Math.sin(a - b), Math.cos(a - b));
 }
 
-function damagePlayer(value, player, damage) {
+function damagePlayer(value, player, damage, attacker = null) {
   if (player.hp <= 0 || player.invulnerable > 0) return;
+  if (attacker && player.parryTicks > 0) {
+    const incomingAngle = Math.atan2(attacker.y - player.y, attacker.x - player.x);
+    if (Math.abs(angleDifference(incomingAngle, player.a)) < 1.2) {
+      player.parryTicks = 0;
+      player.riposteWindow = 50;
+      player.parryFlash = 18;
+      player.stamina = Math.min(player.maxStamina, player.stamina + 20);
+      attacker.attack = null;
+      attacker.attackCooldown = Math.max(attacker.attackCooldown, attacker.type === 'boss' ? 48 : 62);
+      attacker.hitTicks = 18;
+      return;
+    }
+  }
   player.hp = Math.max(0, player.hp - damage);
   player.hurtTicks = 14;
   if (player.hp === 0) {
@@ -169,6 +183,8 @@ function damagePlayer(value, player, damage) {
     player.souls = 0;
     player.attack = null;
     player.dodge = null;
+    player.parryTicks = 0;
+    player.riposteWindow = 0;
   }
 }
 
@@ -178,6 +194,9 @@ function useBonfire(value, player) {
   player.flasks = player.maxFlasks;
   player.attack = null;
   player.dodge = null;
+  player.parryTicks = 0;
+  player.riposteWindow = 0;
+  player.parryFlash = 0;
   player.attackCooldown = 0;
   value.bullets = [];
   value.enemies = makeEnemies(value.bossDefeated);
@@ -225,12 +244,19 @@ function startPlayerAction(value, player, action) {
     player.attack = null;
     return;
   }
+  if (action === 'parry') {
+    if (player.attack || player.dodge || player.parryTicks > 0 || player.stamina < 18) return;
+    player.stamina -= 18;
+    player.parryTicks = 11;
+    return;
+  }
   if ((action === 'light' || action === 'heavy') && !player.attack && player.attackCooldown === 0) {
     const heavy = action === 'heavy';
     const cost = heavy ? 36 : 20;
     if (player.stamina < cost) return;
     player.stamina -= cost;
-    player.attack = {type: action, ticks: 0, hit: false};
+    player.attack = {type: action, ticks: 0, hit: false, riposte: player.riposteWindow > 0};
+    player.riposteWindow = 0;
     player.attackCooldown = heavy ? 30 : 18;
   }
 }
@@ -259,6 +285,9 @@ function updatePlayer(value, player) {
   if (player.attackCooldown > 0) player.attackCooldown--;
   if (player.invulnerable > 0) player.invulnerable--;
   if (player.hurtTicks > 0) player.hurtTicks--;
+  if (player.parryTicks > 0) player.parryTicks--;
+  if (player.riposteWindow > 0) player.riposteWindow--;
+  if (player.parryFlash > 0) player.parryFlash--;
 
   if (player.dodge) {
     moveEntity(player, player.dodge.dx * 6.2, player.dodge.dy * 6.2, PLAYER_RADIUS, value);
@@ -276,7 +305,8 @@ function updatePlayer(value, player) {
     if (!player.attack.hit && player.attack.ticks === impactTick) {
       player.attack.hit = true;
       const range = player.attack.type === 'heavy' ? 68 : 52;
-      const damage = (player.attack.type === 'heavy' ? 62 : 34) + player.level * (player.attack.type === 'heavy' ? 7 : 4);
+      const baseDamage = (player.attack.type === 'heavy' ? 62 : 34) + player.level * (player.attack.type === 'heavy' ? 7 : 4);
+      const damage = Math.round(baseDamage * (player.attack.riposte ? 1.7 : 1));
       for (const enemy of value.enemies) {
         if (enemy.hp <= 0) continue;
         const dx = enemy.x - player.x;
@@ -343,7 +373,7 @@ function updateEnemy(value, enemy) {
         const range = slam ? 108 : enemy.range + (enemy.type === 'boss' ? 20 : 8);
         const bearing = Math.atan2(target.y - enemy.y, target.x - enemy.x);
         const inRange = distance <= range && (slam || Math.abs(angleDifference(bearing, enemy.attack.direction)) < (enemy.type === 'lancer' ? 0.48 : 0.88));
-        if (inRange) damagePlayer(value, target, slam ? enemy.damage + 12 : enemy.damage);
+        if (inRange) damagePlayer(value, target, slam ? enemy.damage + 12 : enemy.damage, enemy);
         enemy.attack.phase = 'recover';
         enemy.attack.remaining = slam ? 44 : 28;
       }
@@ -469,7 +499,7 @@ io.on('connection', socket => {
       right: !!input.right,
       aim: Number.isFinite(input.aim) ? input.aim : null
     };
-    if (['light', 'heavy', 'dodge', 'flask', 'interact', 'level'].includes(input.action)) player.action = input.action;
+    if (['light', 'heavy', 'dodge', 'parry', 'flask', 'interact', 'level'].includes(input.action)) player.action = input.action;
   });
   socket.on('disconnect', () => leave(socket));
 });
